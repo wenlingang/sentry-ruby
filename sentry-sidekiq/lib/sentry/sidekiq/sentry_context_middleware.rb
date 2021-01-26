@@ -1,3 +1,5 @@
+require 'sentry/sidekiq/util'
+
 module Sentry
   module Sidekiq
     class SentryContextMiddleware
@@ -7,7 +9,7 @@ module Sentry
         Sentry.clone_hub_to_current_thread
         scope = Sentry.get_current_scope
         scope.set_extras(sidekiq: job.merge("queue" => queue))
-        scope.set_transaction_name("Sidekiq/#{job["class"]}")
+        scope.set_transaction_name(Util.transaction_name_from_context(job))
 
         yield
 

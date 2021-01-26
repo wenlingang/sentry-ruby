@@ -1,38 +1,22 @@
 require 'sentry/sidekiq/context_filter'
+require 'sentry/sidekiq/util'
 
 module Sentry
   module Sidekiq
     class ErrorHandler
-      SIDEKIQ_NAME = "Sidekiq".freeze
-
       def call(ex, context)
         return unless Sentry.initialized?
-        context = Sentry::Sidekiq::ContextFilter.new.filter_context(context)
+
         scope = Sentry.get_current_scope
-        scope.set_transaction_name(transaction_from_context(context)) unless scope.transaction_name
+        scope.set_transaction_name(Util.transaction_name_from_context(context)) unless scope.transaction_name
+
+        filtered_context = Sentry::Sidekiq::ContextFilter.new.filter_context(context)
 
         Sentry::Sidekiq.capture_exception(
           ex,
-          extra: { sidekiq: context },
+          extra: { sidekiq: filtered_context },
           hint: { background: false }
         )
-      end
-
-      private
-
-      # this will change in the future:
-      # https://github.com/mperham/sidekiq/pull/3161
-      def transaction_from_context(context)
-        classname = (context["wrapped"] || context["class"] ||
-                      (context[:job] && (context[:job]["wrapped"] || context[:job]["class"]))
-                    )
-        if classname
-          "#{SIDEKIQ_NAME}/#{classname}"
-        elsif context[:event]
-          "#{SIDEKIQ_NAME}/#{context[:event]}"
-        else
-          SIDEKIQ_NAME
-        end
       end
     end
   end
